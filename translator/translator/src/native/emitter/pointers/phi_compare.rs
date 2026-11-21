@@ -962,6 +962,21 @@ impl Emitter {
         Ok(())
     }
 
+    /// Two raw-offset roots name the same storage when they are the same local, or when a no-op
+    /// bitcast gave two names one SPIR-V result: opaque pointer bitcasts reuse their operand's id.
+    fn raw_offset_roots_agree(&self, lhs: &str, rhs: &str) -> bool {
+        if lhs == rhs {
+            return true;
+        }
+        let id = |name: &str| {
+            self.values
+                .get(name)
+                .or_else(|| self.global_values.get(name))
+                .map(|(id, _)| *id)
+        };
+        matches!((id(lhs), id(rhs)), (Some(lhs), Some(rhs)) if lhs == rhs)
+    }
+
     pub(in crate::native::emitter) fn emit_raw_pointer_icmp(
         &mut self,
         pred: Op,
@@ -998,7 +1013,8 @@ impl Emitter {
                 self.materialize_device_address(&rhs_raw, instructions)?,
             ),
             (false, false)
-                if lhs_raw.root == rhs_raw.root && lhs_raw.addrspace == rhs_raw.addrspace =>
+                if self.raw_offset_roots_agree(&lhs_raw.root, &rhs_raw.root)
+                    && lhs_raw.addrspace == rhs_raw.addrspace =>
             {
                 (
                     self.emit_raw_byte_index(&lhs_raw, 0, instructions)?,
