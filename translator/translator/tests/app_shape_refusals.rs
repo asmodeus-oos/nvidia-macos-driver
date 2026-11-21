@@ -33,6 +33,18 @@ fn two_different_buffer_arguments_still_compare_unequal() {
     translate(&ll, Stage::Fragment).expect("translate");
 }
 
+const BYTE_ARRAY_INIT: &str = include_str!("fixtures/app_shapes/byte_array_init_cmp.ll");
+
+/// "pointer icmp is only supported against null: eq ptr %arrayinit.next, %arrayinit.end" -- a byte-array
+/// init loop compared its walker against the end pointer while the two named the same alloca under
+/// different roots (the alloca and its no-op bitcast).
+#[test]
+fn a_byte_array_init_loop_compares_against_its_end_pointer() {
+    let asm = translate(BYTE_ARRAY_INIT, Stage::Fragment).expect("translate");
+    assert!(!asm.contains("OpPtrEqual") && !asm.contains("OpPtrNotEqual"), "the comparison must stay on integer offsets:\n{asm}");
+    assert!(asm.contains("OpIEqual"), "the comparison lowers to byte indices:\n{asm}");
+}
+
 const SAMP1: &str = include_str!("fixtures/app_shapes/samp1.ll");
 
 /// "sampler operand is a pointer whose exact sampler state was not recovered" -- a fragment function picked one of two
